@@ -12,6 +12,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { PagedReaderScreen } from './src/features/reader/presentation/PagedReaderScreen';
+import { MovieDialogueScreen } from './src/features/reader/presentation/MovieDialogueScreen';
 import { VocabularyScreen } from './src/screens/VocabularyScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AICoachModal } from './src/components/AICoachModal';
@@ -81,10 +82,17 @@ function MainAppContent() {
       {/* Screen Router */}
       <View style={[styles.screenContainer, { backgroundColor: colors.background }]}>
         {activeReading ? (
-          <PagedReaderScreen
-            reading={activeReading}
-            onBack={() => setActiveReading(null)}
-          />
+          activeReading.category === 'movies' || activeReading.category === 'daily_dialogues' ? (
+            <MovieDialogueScreen
+              reading={activeReading}
+              onBack={() => setActiveReading(null)}
+            />
+          ) : (
+            <PagedReaderScreen
+              reading={activeReading}
+              onBack={() => setActiveReading(null)}
+            />
+          )
         ) : (
           <>
             {activeTab === 'home' && (
