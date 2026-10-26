@@ -8,7 +8,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
-  Platform
+  Platform,
+  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Word } from '../types';
@@ -16,6 +18,8 @@ import { getWeakWords, getDueReviewWords, getAppStats, getAllWords, updateWordSR
 import { callGemini, getGeminiApiKey } from '../services/gemini';
 import { speakWord } from '../services/speech';
 import { useTheme } from '../context/ThemeContext';
+import { chatWithNova } from '../features/coach/data/novaChat';
+import { ChatTurn } from '../features/coach/domain/chatPrompt';
 
 interface AICoachModalProps {
   visible: boolean;
@@ -50,14 +54,16 @@ export const AICoachModal: React.FC<AICoachModalProps> = ({ visible, onClose }) 
   // Story state
   const [storyData, setStoryData] = useState<{ title: string; story: string; turkish: string; words: string[] } | null>(null);
 
-  // Interactive quick chat state
-  const [chatLog, setChatLog] = useState<{ sender: 'nova' | 'user'; text: string; tr?: string }[]>([
+  // Interactive chat state
+  const [chatLog, setChatLog] = useState<{ sender: 'nova' | 'user'; text: string; tr?: string; correction?: string }[]>([
     {
       sender: 'nova',
-      text: 'Hi there! Ready to practice some English today? Choose a topic below to chat with me!',
-      tr: 'Selam! Bugün biraz İngilizce pratik yapmaya hazır mısın? Benimle konuşmak için aşağıdaki konulardan birini seç!'
+      text: 'Hi there! Ready to practice some English today? Just type anything to start chatting with me!',
+      tr: 'Selam! Bugün biraz İngilizce pratik yapmaya hazır mısın? Başlamak için bana bir şeyler yaz!'
     }
   ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -269,14 +275,30 @@ Format as JSON:
     }
   };
 
-  // ================= 4. QUICK CHAT WITH PREDEFINED CHIPS =================
-  const handleChatUserChoice = (text: string, replyEn: string, replyTr: string) => {
-    setChatLog(prev => [
-      ...prev,
-      { sender: 'user', text },
-      { sender: 'nova', text: replyEn, tr: replyTr }
-    ]);
-    speakWord(replyEn);
+  // ================= 4. REAL CONVERSATION WITH NOVA (GEMINI) =================
+  const handleSendMessage = async () => {
+    const text = chatInput.trim();
+    if (!text || chatSending) return;
+
+    const history: ChatTurn[] = chatLog.map(m => ({
+      role: m.sender === 'user' ? 'user' : 'nova',
+      text: m.text,
+    }));
+
+    setChatLog(prev => [...prev, { sender: 'user', text }]);
+    setChatInput('');
+    setChatSending(true);
+
+    try {
+      const res = await chatWithNova(history, text);
+      setChatLog(prev => [
+        ...prev,
+        { sender: 'nova', text: res.reply, tr: res.replyTr, correction: res.correction },
+      ]);
+      speakWord(res.reply);
+    } finally {
+      setChatSending(false);
+    }
   };
 
   return (
@@ -501,7 +523,7 @@ Format as JSON:
             </View>
           )}
 
-          {/* ================= 4. QUICK CHAT VIEW ================= */}
+          {/* ================= 4. REAL CHAT VIEW ================= */}
           {!loading && activeMode === 'chat' && (
             <View style={styles.chatWrapper}>
               <View style={styles.chatContainer}>
@@ -516,52 +538,45 @@ Format as JSON:
                     <Text style={msg.sender === 'user' ? styles.userBubbleText : styles.novaBubbleText}>
                       {msg.text}
                     </Text>
-                    {msg.tr && <Text style={styles.bubbleTrText}>{msg.tr}</Text>}
+                    {msg.tr ? <Text style={styles.bubbleTrText}>{msg.tr}</Text> : null}
+                    {msg.correction ? (
+                      <View style={styles.correctionBox}>
+                        <Text style={styles.correctionText}>✍️ {msg.correction}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 ))}
+
+                {chatSending && (
+                  <View style={[styles.chatBubble, styles.novaBubble]}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                )}
               </View>
 
-              <Text style={styles.quickPromptTitle}>Bir yanıt seç:</Text>
-              <View style={styles.quickChipsWrap}>
-                <TouchableOpacity
-                  style={styles.chatActionChip}
-                  onPress={() =>
-                    handleChatUserChoice(
-                      'I had a productive day studying English!',
-                      "That's wonderful to hear! Consistency is the key to fluency.",
-                      "Bunu duymak harika! Akıcılığın anahtarı düzenli çalışmaktır."
-                    )
-                  }
-                >
-                  <Text style={styles.chatActionChipText}>Günün güzel geçtiğini söyle 😊</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.chatActionChip}
-                  onPress={() =>
-                    handleChatUserChoice(
-                      'Can you tell me an interesting idiom?',
-                      '"Piece of cake" means something is very easy to do! Example: This test was a piece of cake.',
-                      '"Piece of cake", bir şeyin çok kolay olduğunu anlatır (Çantada keklik).'
-                    )
-                  }
-                >
-                  <Text style={styles.chatActionChipText}>Bana ilginç bir deyim öğret 💡</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.chatActionChip}
-                  onPress={() =>
-                    handleChatUserChoice(
-                      'How can I speak faster without pausing?',
-                      'Try listening to English podcasts and repeat sentences out loud. This is called shadowing!',
-                      'İngilizce podcast dinleyip cümleleri sesli tekrar et. Buna gölgeleme tekniği denir!'
-                    )
-                  }
-                >
-                  <Text style={styles.chatActionChipText}>Nasıl daha akıcı konuşurum? 🗣️</Text>
-                </TouchableOpacity>
-              </View>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <View style={[styles.chatInputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TextInput
+                    style={[styles.chatInput, { color: colors.text }]}
+                    placeholder="Nova ile İngilizce yaz..."
+                    placeholderTextColor={colors.subtext}
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    onSubmitEditing={handleSendMessage}
+                    editable={!chatSending}
+                    returnKeyType="send"
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[styles.chatSendBtn, { backgroundColor: colors.primary, opacity: chatInput.trim() && !chatSending ? 1 : 0.5 }]}
+                    onPress={handleSendMessage}
+                    disabled={!chatInput.trim() || chatSending}
+                    accessibilityLabel="Gönder"
+                  >
+                    <Ionicons name="send" size={18} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAvoidingView>
 
               <TouchableOpacity style={styles.backMenuBtn} onPress={resetToMenu}>
                 <Ionicons name="arrow-back" size={18} color="#2563eb" />
@@ -579,6 +594,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  correctionBox: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+  },
+  correctionText: {
+    fontSize: 13,
+    color: '#b45309',
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    padding: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  chatInput: {
+    flex: 1,
+    fontSize: 15,
+    maxHeight: 120,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  chatSendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     flexDirection: 'row',
