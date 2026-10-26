@@ -488,7 +488,7 @@ export const VocabularyScreen: React.FC<VocabularyScreenProps> = ({ initialLevel
               <View style={styles.loadingMoreWrap}>
                 <ActivityIndicator size="small" color="#2563eb" />
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
