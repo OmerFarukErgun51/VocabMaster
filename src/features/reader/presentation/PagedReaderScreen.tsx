@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
   ScrollView,
+  Modal,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import { InteractiveText } from '../../../components/InteractiveText';
 import { useTheme } from '../../../context/ThemeContext';
 import { ReaderContent } from '../domain/types';
 import { usePagedReader } from './usePagedReader';
+import { EndOfContentTest } from './EndOfContentTest';
 
 interface PagedReaderScreenProps {
   reading: ReadingMaterial;
@@ -55,6 +57,8 @@ export const PagedReaderScreen: React.FC<PagedReaderScreenProps> = ({ reading, o
   );
 
   const { pages, page, total, goTo } = usePagedReader(content, metrics);
+  const [showTest, setShowTest] = useState(false);
+  const onLastPage = total > 0 && page === total - 1;
 
   // Kaldığı sayfaya bir kez kaydır.
   useEffect(() => {
@@ -115,7 +119,22 @@ export const PagedReaderScreen: React.FC<PagedReaderScreenProps> = ({ reading, o
         <Text style={[styles.pageLabel, { color: colors.subtext }]}>
           Sayfa {total > 0 ? page + 1 : 0} / {total}
         </Text>
+
+        {onLastPage && (
+          <TouchableOpacity
+            style={[styles.testBtn, { backgroundColor: colors.primary }]}
+            onPress={() => setShowTest(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="trophy-outline" size={18} color="#fff" />
+            <Text style={styles.testBtnText}>Bitiş Testi</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      <Modal visible={showTest} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowTest(false)}>
+        <EndOfContentTest content={content} onClose={() => setShowTest(false)} />
+      </Modal>
     </View>
   );
 };
@@ -144,4 +163,14 @@ const styles = StyleSheet.create({
   progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: 4, borderRadius: 2 },
   pageLabel: { fontSize: 12, textAlign: 'center', fontWeight: '600' },
+  testBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  testBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
