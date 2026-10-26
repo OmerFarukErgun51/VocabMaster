@@ -11,7 +11,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
-import { ReaderScreen } from './src/screens/ReaderScreen';
+import { PagedReaderScreen } from './src/features/reader/presentation/PagedReaderScreen';
 import { VocabularyScreen } from './src/screens/VocabularyScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AICoachModal } from './src/components/AICoachModal';
@@ -81,7 +81,7 @@ function MainAppContent() {
       {/* Screen Router */}
       <View style={[styles.screenContainer, { backgroundColor: colors.background }]}>
         {activeReading ? (
-          <ReaderScreen
+          <PagedReaderScreen
             reading={activeReading}
             onBack={() => setActiveReading(null)}
           />
